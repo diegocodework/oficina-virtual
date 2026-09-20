@@ -1,0 +1,28 @@
+<Window x:Class="WindowEmbedTest.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WindowEmbedTest"
+        mc:Ignorable="d"
+        Title="Prueba de Window Embedding" Height="600" Width="900">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="8">
+            <Button x:Name="RefreshButton" Content="1. Listar ventanas abiertas" Padding="8,4" Margin="0,0,8,0" Click="RefreshButton_Click"/>
+            <ComboBox x:Name="WindowsCombo" Width="350" Margin="0,0,8,0"/>
+            <Button x:Name="EmbedButton" Content="2. Embeber en el panel de abajo" Padding="8,4" Margin="0,0,8,0" Click="EmbedButton_Click"/>
+            <Button x:Name="ReleaseButton" Content="3. Liberar ventana" Padding="8,4" Click="ReleaseButton_Click"/>
+        </StackPanel>
+
+        <Border x:Name="EmbedContainer" Grid.Row="1" Margin="8" Background="#FFEFEFEF" BorderBrush="Gray" BorderThickness="1"
+                SizeChanged="EmbedContainer_SizeChanged">
+            <TextBlock x:Name="PlaceholderText" Text="Aquí se embeberá la ventana capturada. Redimensiona esta ventana (arrastrando el borde de la app) para comprobar que la ventana embebida sigue el tamaño del panel."
+                       TextWrapping="Wrap" Margin="16" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"/>
+        </Border>
+    </Grid>
+</Window>

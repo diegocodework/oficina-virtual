@@ -1,0 +1,12 @@
+# .NET
+bin/
+obj/
+*.user
+
+# Visual Studio / Rider
+.vs/
+.idea/
+
+# Claude Code local settings
+.claude/settings.local.json
+Diario-de-construccion.md
