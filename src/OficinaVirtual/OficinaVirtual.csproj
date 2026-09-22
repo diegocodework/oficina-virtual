@@ -6,6 +6,15 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- Solo para el icono de la bandeja del sistema (NotifyIcon). -->
+    <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Con ImplicitUsings, WinForms añadiría estos usings globales y chocarían con los tipos de WPF
+         (Application, Point, Button...). Se usan con su nombre completo donde hace falta. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
 
 </Project>

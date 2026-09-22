@@ -1,5 +1,4 @@
 using System;
-using System.Text;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -52,28 +51,20 @@ internal static class WindowIconService
 
     private static IntPtr GetIconFromProcessExecutable(IntPtr hwnd)
     {
-        Win32.GetWindowThreadProcessId(hwnd, out int pid);
-        if (pid == 0) return IntPtr.Zero;
-
-        IntPtr process = Win32.OpenProcess(Win32.PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
-        if (process == IntPtr.Zero) return IntPtr.Zero;
+        string? exePath = OpenWindowsService.GetExecutablePath(hwnd);
+        if (string.IsNullOrEmpty(exePath)) return IntPtr.Zero;
 
         try
         {
-            var sb = new StringBuilder(1024);
-            uint size = (uint)sb.Capacity;
-            if (Win32.QueryFullProcessImageName(process, 0, sb, ref size) == 0) return IntPtr.Zero;
-
-            string exePath = sb.ToString();
-            if (string.IsNullOrEmpty(exePath)) return IntPtr.Zero;
-
             var large = new IntPtr[1];
             uint extracted = Win32.ExtractIconEx(exePath, 0, large, null, 1);
             return extracted > 0 ? large[0] : IntPtr.Zero;
         }
-        finally
+        catch
         {
-            Win32.CloseHandle(process);
+            // El icono es solo decorativo (modo icono en el canvas) — que falle su extracción no
+            // debe tirar abajo la app entera.
+            return IntPtr.Zero;
         }
     }
 }

@@ -54,7 +54,18 @@ internal static class Win32
     public static readonly IntPtr HWND_TOP = IntPtr.Zero;
     public const uint SWP_NOMOVE = 0x0002;
     public const uint SWP_NOSIZE = 0x0001;
+    public const uint SWP_NOZORDER = 0x0004;
     public const uint SWP_NOACTIVATE = 0x0010;
+    public const uint SWP_FRAMECHANGED = 0x0020;
+
+    [DllImport("user32.dll")]
+    public static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
+
+    public const uint RDW_INVALIDATE = 0x0001;
+    public const uint RDW_ERASE = 0x0004;
+    public const uint RDW_ALLCHILDREN = 0x0080;
+    public const uint RDW_UPDATENOW = 0x0100;
+    public const uint RDW_FRAME = 0x0400;
 
     [DllImport("dwmapi.dll")]
     public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
@@ -66,7 +77,7 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern IntPtr GetClassLongPtr(IntPtr hWnd, int nIndex);
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     public static extern uint ExtractIconEx(string lpszFile, int nIconIndex, IntPtr[]? phiconLarge, IntPtr[]? phiconSmall, uint nIcons);
 
     [DllImport("user32.dll")]
@@ -170,4 +181,162 @@ internal static class Win32
 
     public const int WH_MOUSE_LL = 14;
     public const int WM_LBUTTONDOWN = 0x0201;
+    public const int WM_LBUTTONUP = 0x0202;
+
+    // --- Detección de "arrastrar una ventana ajena por su barra de título" ---
+    public const uint WM_NCHITTEST = 0x0084;
+    public const int HTCAPTION = 2;
+
+    // --- Reenvío de Ctrl+Scroll a la app embebida (para activar su zoom de contenido propio) ---
+
+    [DllImport("user32.dll")]
+    public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    public const uint WM_MOUSEWHEEL = 0x020A;
+    public const int MK_CONTROL = 0x0008;
+
+    // --- Liberar / cerrar herramientas / instancia única ---
+
+    public const int SW_SHOWNORMAL = 1;
+    public const int SW_SHOWMINNOACTIVE = 7;
+    public const uint WM_CLOSE = 0x0010;
+
+    [DllImport("user32.dll")]
+    public static extern bool AllowSetForegroundWindow(int dwProcessId);
+
+    public const int ASFW_ANY = -1;
+
+    // --- Barra de menú clásica (Windows no la dibuja en ventanas hijas; la replicamos en WPF) ---
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MENUITEMINFO
+    {
+        public uint cbSize;
+        public uint fMask;
+        public uint fType;
+        public uint fState;
+        public uint wID;
+        public IntPtr hSubMenu;
+        public IntPtr hbmpChecked;
+        public IntPtr hbmpUnchecked;
+        public IntPtr dwItemData;
+        public IntPtr dwTypeData;
+        public uint cch;
+        public IntPtr hbmpItem;
+    }
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetMenu(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsMenu(IntPtr hMenu);
+
+    [DllImport("user32.dll")]
+    public static extern int GetMenuItemCount(IntPtr hMenu);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern bool GetMenuItemInfo(IntPtr hMenu, uint uItem, bool fByPosition, ref MENUITEMINFO lpmii);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetMenuString(IntPtr hMenu, uint uIDItem, StringBuilder lpString, int nMaxCount, uint uFlag);
+
+    public const uint MF_BYPOSITION = 0x0400;
+    public const uint MIIM_STATE = 0x0001;
+    public const uint MIIM_ID = 0x0002;
+    public const uint MIIM_SUBMENU = 0x0004;
+    public const uint MIIM_FTYPE = 0x0100;
+    public const uint MFT_SEPARATOR = 0x0800;
+    public const uint MFS_DISABLED = 0x0003;
+    public const uint MFS_CHECKED = 0x0008;
+    public const uint WM_COMMAND = 0x0111;
+    public const uint WM_INITMENUPOPUP = 0x0117;
+
+    // --- Qué documento tiene abierto una app / cómo relanzarla ---
+
+    [DllImport("ntdll.dll")]
+    public static extern int NtQueryInformationProcess(IntPtr processHandle, int processInformationClass,
+        IntPtr processInformation, int processInformationLength, out int returnLength);
+
+    public const int ProcessCommandLineInformation = 60;
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr CommandLineToArgvW(string lpCmdLine, out int pNumArgs);
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr LocalFree(IntPtr hMem);
+
+    [DllImport("shlwapi.dll", CharSet = CharSet.Unicode)]
+    public static extern int AssocQueryString(uint flags, int str, string pszAssoc, string? pszExtra,
+        StringBuilder? pszOut, ref uint pcchOut);
+
+    public const int ASSOCSTR_EXECUTABLE = 2;
+    public const uint ASSOCF_NOTRUNCATE = 0x00000020;
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    /// <summary>
+    /// Título actual de una ventana de otro proceso. GetWindowText no sirve para ventanas embebidas
+    /// (sin barra de título propia devuelve vacío); WM_GETTEXT sí, y con timeout no nos cuelga.
+    /// </summary>
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "SendMessageTimeoutW")]
+    public static extern IntPtr SendMessageTimeoutText(IntPtr hWnd, uint Msg, IntPtr wParam, StringBuilder lParam,
+        uint fuFlags, uint uTimeout, out IntPtr lpdwResult);
+
+    public const uint WM_GETTEXT = 0x000D;
+
+    // --- Foco del teclado en ventanas embebidas ---
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GUITHREADINFO
+    {
+        public int cbSize;
+        public int flags;
+        public IntPtr hwndActive;
+        public IntPtr hwndFocus;
+        public IntPtr hwndCapture;
+        public IntPtr hwndMenuOwner;
+        public IntPtr hwndMoveSize;
+        public IntPtr hwndCaret;
+        public RECT rcCaret;
+    }
+
+    [DllImport("user32.dll")]
+    public static extern bool GetGUIThreadInfo(int idThread, ref GUITHREADINFO lpgui);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr SetFocus(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsChild(IntPtr hWndParent, IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern bool AttachThreadInput(int idAttach, int idAttachTo, bool fAttach);
+
+    [DllImport("kernel32.dll")]
+    public static extern int GetCurrentThreadId();
+
+    // --- Recorte de ventanas embebidas (región visible) ---
+
+    /// <summary>Tras una llamada correcta la región pasa a ser del sistema: no se debe borrar.</summary>
+    [DllImport("user32.dll")]
+    public static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool bRedraw);
+
+    /// <summary>Devuelve 0 (ERROR) si la ventana no tiene región.</summary>
+    [DllImport("user32.dll")]
+    public static extern int GetWindowRgn(IntPtr hWnd, IntPtr hRgn);
+
+    [DllImport("gdi32.dll")]
+    public static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+
+    [DllImport("gdi32.dll")]
+    public static extern int CombineRgn(IntPtr hrgnDest, IntPtr hrgnSrc1, IntPtr hrgnSrc2, int mode);
+
+    [DllImport("gdi32.dll")]
+    public static extern bool DeleteObject(IntPtr hObject);
+
+    public const int RGN_AND = 1;
+    public const int RGN_DIFF = 4;
+
+    public static IntPtr MakeLParam(int x, int y) => (IntPtr)((y << 16) | (x & 0xFFFF));
 }

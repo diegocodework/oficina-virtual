@@ -18,6 +18,7 @@ namespace OficinaVirtual.Views;
 public partial class EmbeddedWindowFrame : UserControl
 {
     public enum WindowMode { Icon, Expanded }
+    public enum ConnectorSide { Left, Right }
 
     /// <summary>Alto fijo de la cabecera (RowDefinition Height="28" en el XAML).</summary>
     public const double HeaderHeight = 28;
@@ -34,12 +35,25 @@ public partial class EmbeddedWindowFrame : UserControl
     public IntPtr TargetHwnd { get; set; }
     public WindowMode CurrentMode { get; private set; } = WindowMode.Icon;
 
+    /// <summary>Identidad estable de este nodo, independiente del HWND (que no sobrevive a un
+    /// reinicio) — se usa para guardar/restaurar el workspace (ver WorkspaceService).</summary>
+    public Guid NodeId { get; } = Guid.NewGuid();
+
+    /// <summary>Documento/carpeta con el que relanzar esta herramienta (entre comillas; vacío si ninguno).</summary>
+    public string LaunchArgs { get; set; } = "";
+
+    /// <summary>Acceso directo con el que se abrió (vacío si no se sabe).</summary>
+    public string LaunchShortcut { get; set; } = "";
+
     public event EventHandler? MoveOrResize;
-    public event EventHandler? CloseRequested;
     public event EventHandler? Selected;
     public event EventHandler? ExpandRequested;
     public event EventHandler? MinimizeRequested;
     public event EventHandler? IconDropped;
+
+    /// <summary>Se ha empezado a arrastrar desde uno de los conectores (izquierdo/derecho), para
+    /// dibujar un cable hasta otro nodo — la orquestación real la hace CanvasTabView.</summary>
+    public event EventHandler<ConnectorSide>? ConnectorDragStarted;
 
     /// <summary>
     /// Color base del marco. Hoy es un gris-azulado neutro para todas las ventanas; en el futuro
@@ -49,8 +63,8 @@ public partial class EmbeddedWindowFrame : UserControl
     public Color AccentColor { get; set; } = Color.FromRgb(0x3E, 0x5C, 0x8A);
 
     private bool _isSelected;
-    private double _expandedWidth = 640;
-    private double _expandedHeight = 420;
+    private double _expandedWidth = 960;
+    private double _expandedHeight = 640;
     private double _expandedLeft = double.NaN;
     private double _expandedTop = double.NaN;
 
@@ -106,6 +120,18 @@ public partial class EmbeddedWindowFrame : UserControl
         IconView.BorderBrush = new SolidColorBrush(selected ? Colors.DodgerBlue : Colors.Transparent);
         TitleText.Foreground = new SolidColorBrush(foreground);
         IconTitleText.Foreground = new SolidColorBrush(foreground);
+        NativeMenuBar.Foreground = new SolidColorBrush(foreground);
+        CloseButton.Foreground = new SolidColorBrush(foreground);
+    }
+
+    /// <summary>
+    /// Muestra en la cabecera la barra de menú clásica de la app embebida (Archivo, Edición...),
+    /// que Windows deja de dibujar al convertirla en ventana hija. Si no tiene, no se muestra nada.
+    /// </summary>
+    public void AttachNativeMenu(IntPtr ownerHwnd, IntPtr hMenu)
+    {
+        bool hasMenu = Services.NativeMenuMirror.TryBuild(ownerHwnd, hMenu, NativeMenuBar);
+        NativeMenuBar.Visibility = hasMenu ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public void SetMode(WindowMode mode)
@@ -117,13 +143,24 @@ public partial class EmbeddedWindowFrame : UserControl
             if (CurrentMode == WindowMode.Icon)
                 LastIconPosition = new Point(Canvas.GetLeft(this), Canvas.GetTop(this));
 
+            // Si ya habíamos estado en tamaño real antes, recuperamos esa posición exacta. Si es la
+            // primera vez, centramos la ventana expandida sobre el CENTRO del icono (no sobre su
+            // esquina): anclar por la esquina hacía que, salvo que el icono estuviera pegado a la
+            // esquina superior-izquierda de la vista, buena parte de la ventana creciera fuera de lo
+            // visible — se sentía como si "apareciera lejos" aunque su esquina sí estuviera ahí.
+            if (double.IsNaN(_expandedLeft))
+            {
+                double iconCenterX = Canvas.GetLeft(this) + Width / 2;
+                double iconCenterY = Canvas.GetTop(this) + Height / 2;
+                _expandedLeft = iconCenterX - _expandedWidth / 2;
+                _expandedTop = iconCenterY - _expandedHeight / 2;
+            }
+
             CurrentMode = WindowMode.Expanded;
             Width = _expandedWidth;
             Height = _expandedHeight;
-            // Si ya habíamos estado en tamaño real antes, recuperamos esa posición exacta;
-            // si es la primera vez, se queda creciendo desde donde estaba el icono.
-            if (!double.IsNaN(_expandedLeft)) Canvas.SetLeft(this, _expandedLeft);
-            if (!double.IsNaN(_expandedTop)) Canvas.SetTop(this, _expandedTop);
+            Canvas.SetLeft(this, _expandedLeft);
+            Canvas.SetTop(this, _expandedTop);
             IconView.Visibility = Visibility.Collapsed;
             ExpandedView.Visibility = Visibility.Visible;
         }
@@ -141,6 +178,32 @@ public partial class EmbeddedWindowFrame : UserControl
             ExpandedView.Visibility = Visibility.Collapsed;
             IconView.Visibility = Visibility.Visible;
         }
+    }
+
+    /// <summary>
+    /// Posición/tamaño de la ventana expandida (coordenadas de canvas) para guardarla en el
+    /// workspace: la actual si está expandida, la recordada si está en icono, o null si nunca se
+    /// ha expandido.
+    /// </summary>
+    public (double Left, double Top, double Width, double Height)? GetExpandedMemory()
+    {
+        if (CurrentMode == WindowMode.Expanded)
+            return (Canvas.GetLeft(this), Canvas.GetTop(this), Width, Height);
+        if (double.IsNaN(_expandedLeft) || double.IsNaN(_expandedTop))
+            return null;
+        return (_expandedLeft, _expandedTop, _expandedWidth, _expandedHeight);
+    }
+
+    /// <summary>Restaura la memoria de posición expandida desde el workspace (el marco está en icono).</summary>
+    public void SetExpandedMemory(double left, double top, double width, double height)
+    {
+        if (CurrentMode == WindowMode.Expanded) return;
+        if (double.IsNaN(left) || double.IsNaN(top) || double.IsInfinity(left) || double.IsInfinity(top)) return;
+
+        _expandedLeft = left;
+        _expandedTop = top;
+        _expandedWidth = Math.Max(MinFrameWidth, width);
+        _expandedHeight = Math.Max(MinFrameHeight, height);
     }
 
     private static Color Dim(Color c) => Color.FromRgb((byte)(c.R * 0.45), (byte)(c.G * 0.45), (byte)(c.B * 0.45));
@@ -204,7 +267,7 @@ public partial class EmbeddedWindowFrame : UserControl
     private void HeaderBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (Parent is not Canvas canvas) return;
-        if (IsWithin(e.OriginalSource, CloseButton) || IsWithin(e.OriginalSource, MinimizeButton)) return;
+        if (IsWithin(e.OriginalSource, CloseButton) || IsWithin(e.OriginalSource, NativeMenuBar)) return;
 
         Selected?.Invoke(this, EventArgs.Empty);
 
@@ -311,14 +374,22 @@ public partial class EmbeddedWindowFrame : UserControl
         MoveOrResize?.Invoke(this, EventArgs.Empty);
     }
 
-    private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+    private void ConnectorLeft_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        MinimizeRequested?.Invoke(this, EventArgs.Empty);
+        e.Handled = true; // evita que dispare el arrastre de cabecera/icono o el paneo del viewport
+        ConnectorDragStarted?.Invoke(this, ConnectorSide.Left);
     }
 
+    private void ConnectorRight_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        ConnectorDragStarted?.Invoke(this, ConnectorSide.Right);
+    }
+
+    /// <summary>La X de la cabecera pasa la ventana a icono (no la libera ni la cierra).</summary>
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
-        CloseRequested?.Invoke(this, EventArgs.Empty);
+        MinimizeRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private static bool IsWithin(object originalSource, DependencyObject ancestor)

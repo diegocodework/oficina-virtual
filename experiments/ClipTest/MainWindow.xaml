@@ -1,0 +1,51 @@
+<Window x:Class="ClipTest.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ClipTest — recorte con SetWindowRgn" Width="1200" Height="800"
+        Background="#1E1E1E" Foreground="#DDDDDD">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Barra superior "falsa" (equivale a la de la oficina): el contenido nativo NO debe taparla. -->
+        <Border x:Name="TopBar" Grid.Row="0" Background="#2D2D30" Padding="8" Panel.ZIndex="10">
+            <WrapPanel VerticalAlignment="Center">
+                <ComboBox x:Name="WindowsCombo" Width="380" Margin="0,0,6,0" DisplayMemberPath="Label"/>
+                <Button Content="Refrescar lista" Click="Refresh_Click" Margin="0,0,6,0" Padding="8,2"/>
+                <Button Content="Embeber" Click="Embed_Click" Margin="0,0,6,0" Padding="8,2"/>
+                <Button Content="Soltar" Click="Release_Click" Margin="0,0,12,0" Padding="8,2"/>
+                <CheckBox x:Name="ClipCheck" Content="Recorte activado" IsChecked="True"
+                          Foreground="#DDDDDD" VerticalAlignment="Center" Margin="0,0,12,0"
+                          Checked="ClipCheck_Changed" Unchecked="ClipCheck_Changed"/>
+                <Button x:Name="BarTestButton" Content="Clic de prueba (barra): 0" Click="BarTest_Click" Padding="8,2"/>
+            </WrapPanel>
+        </Border>
+
+        <!-- "Viewport": aquí vive la ventana embebida. ClipToBounds solo recorta lo WPF; lo nativo
+             se recorta con SetWindowRgn (eso es lo que se prueba). -->
+        <Canvas x:Name="Viewport" Grid.Row="1" Background="#252526" ClipToBounds="True">
+            <!-- Cabecera del marco de la ventana embebida: arrastrarla mueve la ventana nativa. -->
+            <Border x:Name="FrameHeader" Width="700" Height="28" Background="#3A6EA5"
+                    Cursor="SizeAll" MouseLeftButtonDown="FrameHeader_Down"
+                    MouseMove="Drag_Move" MouseLeftButtonUp="Drag_Up">
+                <TextBlock Text="  Cabecera de la ventana embebida (arrástrala hacia arriba, bajo la barra)"
+                           VerticalAlignment="Center" Foreground="White"/>
+            </Border>
+
+            <!-- Cabecera de "otro marco" que está DELANTE: el contenido nativo no debe taparla. -->
+            <Border x:Name="OverlayHeader" Width="320" Height="28" Background="#C8732A"
+                    Canvas.Left="250" Canvas.Top="220" Panel.ZIndex="5"
+                    Cursor="SizeAll" MouseLeftButtonDown="Overlay_Down"
+                    MouseMove="Drag_Move" MouseLeftButtonUp="Drag_Up">
+                <TextBlock x:Name="OverlayText" Text="  Cabecera de otro marco (delante) — clics: 0"
+                           VerticalAlignment="Center" Foreground="White"/>
+            </Border>
+        </Canvas>
+
+        <TextBlock x:Name="StatusText" Grid.Row="2" Margin="8,4" Foreground="#AAAAAA" TextWrapping="Wrap"
+                   Text="Usa una ventana NUEVA (un Bloc de notas nuevo, una ventana nueva de Chrome, una ventana nueva de VS Code). Al cerrar este prototipo la ventana se suelta sola."/>
+    </Grid>
+</Window>

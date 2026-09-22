@@ -20,7 +20,23 @@ internal sealed class EmbeddedWindowGuard : IDisposable
     private readonly HashSet<IntPtr> _trackedHwnds = new();
     private readonly Dictionary<IntPtr, (int X, int Y, int Width, int Height)> _lastKnownRects = new();
 
-    private readonly Win32.WinEventDelegate _winEventProc; // mantiene viva la referencia
+    /// <summary>
+    /// RepositionFrame calcula las coordenadas de cliente (para MoveWindow) y las de pantalla (para
+    /// SetKnownRect) por dos caminos de redondeo independientes, así que casi nunca coinciden a la
+    /// perfección con lo que GetWindowRect informa tras el movimiento — el desajuste es de 1-2px,
+    /// sistemático en una dirección para una posición/escala dadas. Sin tolerancia, cada zoom se
+    /// detectaba como un "movimiento externo" y el marco se iba desplazando (acumulándose siempre
+    /// hacia el mismo lado). Un margen pequeño absorbe ese ruido sin dejar de detectar arrastres
+    /// reales, que son de decenas/cientos de píxeles.
+    /// </summary>
+    private const int EchoToleranceDips = 2;
+
+    // Mientras el hook esté instalado, Windows guarda un puntero a _winEventProc. Esta referencia
+    // estática garantiza que el recolector de basura nunca lo recoja aunque el dueño de este objeto
+    // se pierda (si lo recogiera, la siguiente llamada de Windows mataría el proceso en seco).
+    private static readonly HashSet<EmbeddedWindowGuard> Installed = new();
+
+    private readonly Win32.WinEventDelegate _winEventProc;
     private IntPtr _winEventHook;
 
     public event Action<IntPtr, int, int, int, int>? ExternalRectChanged;
@@ -28,6 +44,7 @@ internal sealed class EmbeddedWindowGuard : IDisposable
     public EmbeddedWindowGuard()
     {
         _winEventProc = OnWinEvent;
+        lock (Installed) Installed.Add(this);
         _winEventHook = Win32.SetWinEventHook(
             Win32.EVENT_OBJECT_LOCATIONCHANGE, Win32.EVENT_OBJECT_LOCATIONCHANGE,
             IntPtr.Zero, _winEventProc, 0, 0, Win32.WINEVENT_OUTOFCONTEXT);
@@ -70,21 +87,38 @@ internal sealed class EmbeddedWindowGuard : IDisposable
 
     private void OnWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint idEventThread, uint idEventTime)
     {
-        if (idObject != Win32.OBJID_WINDOW || hwnd == IntPtr.Zero) return;
-        if (!_trackedHwnds.Contains(hwnd)) return;
-        if (!Win32.GetWindowRect(hwnd, out var rect)) return;
+        // Una excepción que escapara de aquí atravesaría código nativo y tumbaría el proceso — y con
+        // él todas las ventanas embebidas. Se registra y se sigue.
+        try
+        {
+            if (idObject != Win32.OBJID_WINDOW || hwnd == IntPtr.Zero) return;
+            if (!_trackedHwnds.Contains(hwnd)) return;
+            if (!Win32.GetWindowRect(hwnd, out var rect)) return;
 
-        var actual = (rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
-        if (_lastKnownRects.TryGetValue(hwnd, out var known) && known == actual) return; // eco de un cambio nuestro
+            var actual = (rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
+            if (_lastKnownRects.TryGetValue(hwnd, out var known) && IsWithinEchoTolerance(known, actual)) return; // eco de un cambio nuestro
 
-        _lastKnownRects[hwnd] = actual;
-        ExternalRectChanged?.Invoke(hwnd, actual.Item1, actual.Item2, actual.Item3, actual.Item4);
+            _lastKnownRects[hwnd] = actual;
+            ExternalRectChanged?.Invoke(hwnd, actual.Item1, actual.Item2, actual.Item3, actual.Item4);
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("EmbeddedWindowGuard.OnWinEvent", ex);
+        }
     }
+
+    private static bool IsWithinEchoTolerance(
+        (int X, int Y, int Width, int Height) known, (int X, int Y, int Width, int Height) actual) =>
+        Math.Abs(known.X - actual.X) <= EchoToleranceDips &&
+        Math.Abs(known.Y - actual.Y) <= EchoToleranceDips &&
+        Math.Abs(known.Width - actual.Width) <= EchoToleranceDips &&
+        Math.Abs(known.Height - actual.Height) <= EchoToleranceDips;
 
     public void Dispose()
     {
         if (_winEventHook == IntPtr.Zero) return;
         Win32.UnhookWinEvent(_winEventHook);
         _winEventHook = IntPtr.Zero;
+        lock (Installed) Installed.Remove(this);
     }
 }

@@ -13,23 +13,46 @@ namespace OficinaVirtual.Services;
 /// </summary>
 internal sealed class GlobalMouseHook : IDisposable
 {
-    private readonly Win32.LowLevelMouseProc _proc; // mantiene viva la referencia (evita que el GC la recoja)
+    // Mientras el hook esté instalado, Windows guarda un puntero a _proc. Esta referencia estática
+    // garantiza que el recolector de basura nunca lo recoja aunque el dueño de este objeto se pierda
+    // (si lo recogiera, la siguiente llamada de Windows mataría el proceso en seco).
+    private static readonly HashSet<GlobalMouseHook> Installed = new();
+
+    private readonly Win32.LowLevelMouseProc _proc;
     private IntPtr _hookHandle;
 
     public event Action<Point>? LeftButtonDown;
 
+    /// <summary>Se usa para detectar cuándo se suelta el arrastre de una ventana ajena sobre el canvas.</summary>
+    public event Action<Point>? LeftButtonUp;
+
     public GlobalMouseHook()
     {
         _proc = HookCallback;
+        lock (Installed) Installed.Add(this);
         _hookHandle = Win32.SetWindowsHookEx(Win32.WH_MOUSE_LL, _proc, Win32.GetModuleHandle(null), 0);
     }
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0 && wParam == (IntPtr)Win32.WM_LBUTTONDOWN)
+        // Una excepción que escapara de aquí atravesaría código nativo y tumbaría el proceso — y con
+        // él todas las ventanas embebidas. Se registra y se sigue.
+        try
         {
-            var hookStruct = Marshal.PtrToStructure<Win32.MSLLHOOKSTRUCT>(lParam);
-            LeftButtonDown?.Invoke(new Point(hookStruct.pt.X, hookStruct.pt.Y));
+            if (nCode >= 0 && wParam == (IntPtr)Win32.WM_LBUTTONDOWN)
+            {
+                var hookStruct = Marshal.PtrToStructure<Win32.MSLLHOOKSTRUCT>(lParam);
+                LeftButtonDown?.Invoke(new Point(hookStruct.pt.X, hookStruct.pt.Y));
+            }
+            else if (nCode >= 0 && wParam == (IntPtr)Win32.WM_LBUTTONUP)
+            {
+                var hookStruct = Marshal.PtrToStructure<Win32.MSLLHOOKSTRUCT>(lParam);
+                LeftButtonUp?.Invoke(new Point(hookStruct.pt.X, hookStruct.pt.Y));
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("GlobalMouseHook.HookCallback", ex);
         }
 
         return Win32.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
@@ -40,5 +63,6 @@ internal sealed class GlobalMouseHook : IDisposable
         if (_hookHandle == IntPtr.Zero) return;
         Win32.UnhookWindowsHookEx(_hookHandle);
         _hookHandle = IntPtr.Zero;
+        lock (Installed) Installed.Remove(this);
     }
 }

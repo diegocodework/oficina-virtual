@@ -33,18 +33,19 @@
                             MouseMove="HeaderBar_MouseMove">
                         <Grid>
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" MaxWidth="240"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock x:Name="TitleText" Grid.Column="0" Foreground="White" VerticalAlignment="Center"
                                        Margin="8,0" TextTrimming="CharacterEllipsis" FontSize="12"/>
-                            <Button x:Name="MinimizeButton" Grid.Column="1" Content="─" Width="28" Background="Transparent"
-                                    BorderThickness="0" Foreground="White" Click="MinimizeButton_Click"
-                                    ToolTip="Volver a modo icono"/>
+                            <!-- Réplica del menú clásico de la app (Archivo, Edición...), que Windows no
+                                 dibuja en ventanas embebidas. Vacío y oculto si la app no tiene. -->
+                            <Menu x:Name="NativeMenuBar" Grid.Column="1" Background="Transparent" Foreground="White"
+                                  VerticalAlignment="Center" FontSize="12" Visibility="Collapsed"/>
                             <Button x:Name="CloseButton" Grid.Column="2" Content="✕" Width="28" Background="Transparent"
                                     BorderThickness="0" Foreground="White" Click="CloseButton_Click"
-                                    ToolTip="Liberar (deja de estar embebida)"/>
+                                    ToolTip="Pasar a icono"/>
                         </Grid>
                     </Border>
 
@@ -71,5 +72,15 @@
             <Thumb x:Name="ThumbBottomRight" Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                    Cursor="SizeNWSE" DragDelta="ThumbBottomRight_DragDelta" Background="Transparent"/>
         </Grid>
+
+        <!-- Conectores tipo ComfyUI: arrastrar desde aquí para dibujar un cable hasta otro nodo.
+             Encima de todo (últimos en el árbol) y con alineación relativa, así que se reposicionan
+             solos al cambiar entre modo Icono y Expandido sin código adicional. -->
+        <Ellipse x:Name="ConnectorLeft" Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Center"
+                 Margin="-6,0,0,0" Fill="#FF9AA5B1" Stroke="#FF1E1E1E" StrokeThickness="1.5" Cursor="Hand"
+                 MouseLeftButtonDown="ConnectorLeft_MouseLeftButtonDown"/>
+        <Ellipse x:Name="ConnectorRight" Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Center"
+                 Margin="0,0,-6,0" Fill="#FF9AA5B1" Stroke="#FF1E1E1E" StrokeThickness="1.5" Cursor="Hand"
+                 MouseLeftButtonDown="ConnectorRight_MouseLeftButtonDown"/>
     </Grid>
 </UserControl>

@@ -9,6 +9,16 @@
         SizeChanged="Window_SizeChanged" LocationChanged="Window_LocationChanged"
         StateChanged="Window_StateChanged" Closing="Window_Closing">
     <Grid>
-        <TabControl x:Name="MainTabControl" SelectionChanged="MainTabControl_SelectionChanged"/>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="6" Background="#FF1B1E27">
+            <Button x:Name="SaveWorkspaceButton" Content="Guardar workspace" Margin="0,0,10,0" Click="SaveWorkspaceButton_Click"/>
+            <TextBlock x:Name="WorkspaceStatusText" VerticalAlignment="Center" Foreground="#FFE4A15C" FontSize="11"/>
+        </StackPanel>
+
+        <TabControl x:Name="MainTabControl" Grid.Row="1" SelectionChanged="MainTabControl_SelectionChanged"/>
     </Grid>
 </Window>

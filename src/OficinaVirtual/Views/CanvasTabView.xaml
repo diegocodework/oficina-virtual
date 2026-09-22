@@ -10,14 +10,14 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="6" Background="#FFF0F0F0">
-            <Button x:Name="RefreshButton" Content="Actualizar lista" Padding="6,3" Margin="0,0,6,0" Click="RefreshButton_Click"/>
-            <ComboBox x:Name="WindowsCombo" Width="300" Margin="0,0,6,0"/>
-            <Button x:Name="AddButton" Content="+ Pinchar" Padding="6,3" Margin="0,0,6,0" Click="AddButton_Click"/>
-            <Button x:Name="ReleaseButton" Content="- Liberar" Padding="6,3" Margin="0,0,16,0" Click="ReleaseButton_Click"/>
+        <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="6" Background="#FF1B1E27">
+            <Button x:Name="RefreshButton" Content="Actualizar lista" Margin="0,0,6,0" Click="RefreshButton_Click"/>
+            <ComboBox x:Name="WindowsCombo" Width="300" Height="26" Margin="0,0,6,0"/>
+            <Button x:Name="AddButton" Content="+ Pinchar" Margin="0,0,6,0" Click="AddButton_Click"/>
+            <Button x:Name="ReleaseButton" Content="- Liberar" Margin="0,0,16,0" Click="ReleaseButton_Click"/>
             <TextBlock x:Name="ZoomText" Text="100%" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,16,0"/>
             <TextBlock Text="rueda = zoom · arrastra el fondo = mover el canvas · clic = seleccionar, clic de nuevo = abrir"
-                       VerticalAlignment="Center" Foreground="Gray" FontSize="11"/>
+                       VerticalAlignment="Center" Foreground="#FF9AA5B1" FontSize="11"/>
         </StackPanel>
 
         <Border Grid.Row="1" ClipToBounds="True" Background="#FF0A0C12" x:Name="ViewportBorder"
@@ -25,21 +25,41 @@
                 MouseLeftButtonDown="Viewport_MouseLeftButtonDown"
                 MouseLeftButtonUp="Viewport_MouseLeftButtonUp"
                 MouseMove="Viewport_MouseMove">
-            <Canvas x:Name="InfiniteCanvas" Width="4000" Height="4000">
+            <Canvas x:Name="InfiniteCanvas" Width="200000" Height="200000">
                 <Canvas.Background>
-                    <DrawingBrush TileMode="Tile" Viewport="0,0,50,50" ViewportUnits="Absolute" Stretch="None">
+                    <!-- Rejilla en dos niveles: cuadros pequeños (tenues) + cuadros grandes cada 5 celdas (más visibles) -->
+                    <DrawingBrush TileMode="Tile" Viewport="0,0,100,100" ViewportUnits="Absolute" Stretch="None">
                         <DrawingBrush.Drawing>
-                            <GeometryDrawing>
-                                <GeometryDrawing.Pen>
-                                    <Pen Brush="#FF1E2433" Thickness="1"/>
-                                </GeometryDrawing.Pen>
-                                <GeometryDrawing.Geometry>
-                                    <GeometryGroup>
-                                        <LineGeometry StartPoint="0,0" EndPoint="50,0"/>
-                                        <LineGeometry StartPoint="0,0" EndPoint="0,50"/>
-                                    </GeometryGroup>
-                                </GeometryDrawing.Geometry>
-                            </GeometryDrawing>
+                            <DrawingGroup>
+                                <GeometryDrawing>
+                                    <GeometryDrawing.Pen>
+                                        <Pen Brush="#FF15171F" Thickness="1"/>
+                                    </GeometryDrawing.Pen>
+                                    <GeometryDrawing.Geometry>
+                                        <GeometryGroup>
+                                            <LineGeometry StartPoint="20,0" EndPoint="20,100"/>
+                                            <LineGeometry StartPoint="40,0" EndPoint="40,100"/>
+                                            <LineGeometry StartPoint="60,0" EndPoint="60,100"/>
+                                            <LineGeometry StartPoint="80,0" EndPoint="80,100"/>
+                                            <LineGeometry StartPoint="0,20" EndPoint="100,20"/>
+                                            <LineGeometry StartPoint="0,40" EndPoint="100,40"/>
+                                            <LineGeometry StartPoint="0,60" EndPoint="100,60"/>
+                                            <LineGeometry StartPoint="0,80" EndPoint="100,80"/>
+                                        </GeometryGroup>
+                                    </GeometryDrawing.Geometry>
+                                </GeometryDrawing>
+                                <GeometryDrawing>
+                                    <GeometryDrawing.Pen>
+                                        <Pen Brush="#FF262B3A" Thickness="1.25"/>
+                                    </GeometryDrawing.Pen>
+                                    <GeometryDrawing.Geometry>
+                                        <GeometryGroup>
+                                            <LineGeometry StartPoint="0,0" EndPoint="100,0"/>
+                                            <LineGeometry StartPoint="0,0" EndPoint="0,100"/>
+                                        </GeometryGroup>
+                                    </GeometryDrawing.Geometry>
+                                </GeometryDrawing>
+                            </DrawingGroup>
                         </DrawingBrush.Drawing>
                     </DrawingBrush>
                 </Canvas.Background>
